@@ -666,6 +666,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 16,
+    marginTop: 18,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -680,6 +681,7 @@ const styles = StyleSheet.create({
   },
   quickActions: {
     marginBottom: 8,
+    marginTop: 4,
   },
   primaryAction: {
     marginBottom: 16,
