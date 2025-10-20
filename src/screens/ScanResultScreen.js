@@ -1,4 +1,3 @@
-// src/screens/ScanResultScreen.js
 import React from 'react';
 import {
   View,
@@ -11,6 +10,7 @@ import {
   Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import UserDataService from '../services/userDataService';
 
 const { width } = Dimensions.get('window');
 
@@ -33,9 +33,27 @@ const ScanResultScreen = ({ route, navigation }) => {
     Alert.alert('Saved!', 'Food item saved to your history');
   };
 
-  const handleAddToMeal = () => {
-    Alert.alert('Added!', 'Added to today\'s meals');
-  };
+const handleAddToMeal = async () => {
+  try {
+    // Determine current meal time
+    const mealType = UserDataService.getMealTimeFromHour();
+    
+    // Save to user's daily intake
+    await UserDataService.addFoodToMeal(foodData, mealType);
+    
+    Alert.alert(
+      'Added to Meal!', 
+      `Added to your ${mealType} for today.`,
+      [
+        { text: 'OK' },
+        { text: 'View Stats', onPress: () => navigation.navigate('NutritionStats') }
+      ]
+    );
+  } catch (error) {
+    console.error('Error adding to meal:', error);
+    Alert.alert('Error', 'Failed to add to meal. Please try again.');
+  }
+};
 
   return (
     <ScrollView style={styles.container}>
