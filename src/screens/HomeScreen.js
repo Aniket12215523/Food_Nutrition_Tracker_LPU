@@ -139,7 +139,7 @@ const HomeScreen = ({ navigation }) => {
   };
 
   const handleViewProfile = () => {
-    Alert.alert('Profile', 'Profile screen coming soon!');
+    navigation.navigate('Profile'); 
   };
 
   const handleViewStats = () => {

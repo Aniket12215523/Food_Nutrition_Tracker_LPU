@@ -14,6 +14,9 @@ import ScanResultScreen from './src/screens/ScanResultScreen';
 import FoodLocationsHubScreen from './src/screens/FoodLocationsHubScreen';
 import NutritionStatsScreen from './src/screens/NutritionStatsScreen';
 import GoalSettingScreen from './src/screens/GoalSettingScreen';
+import ProfileScreen from './src/screens/ProfileScreen';
+
+import { ThemeProvider } from './src/context/ThemeContext';
 
 const Drawer = createDrawerNavigator();
 
@@ -65,6 +68,7 @@ export default function App() {
 
 
   return (
+    <ThemeProvider>
     <PaperProvider>
       <NavigationContainer>
         <StatusBar style="auto" />
@@ -195,6 +199,18 @@ export default function App() {
               drawerItemStyle: { display: 'none' } // Hidden from drawer
             }}
           />
+          <Drawer.Screen 
+          name="Profile" 
+          component={ProfileScreen}
+          options={{ 
+            title: 'Profile',
+            headerShown: false,
+            drawerLabel: 'Profile',
+            drawerIcon: ({ color, size }) => (
+              <Ionicons name="person" size={size} color={color} />
+            )
+          }}
+          />
 
           {/* Scan Result Screen */}
           <Drawer.Screen 
@@ -209,5 +225,6 @@ export default function App() {
         </Drawer.Navigator>
       </NavigationContainer>
     </PaperProvider>
+    </ThemeProvider>
   );
 }
