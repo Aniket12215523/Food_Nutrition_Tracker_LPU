@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import UserDataService from '../services/userDataService';
+import NotificationService from '../services/notificationService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -69,6 +70,8 @@ const HomeScreen = ({ navigation }) => {
       setDailyStats(todayIntake);
       setUserGoals(goals);
       setRecentScans(scans);
+
+      await NotificationService.checkMissedMeals();
       
     } catch (error) {
       console.error('Error loading user data:', error);
@@ -132,7 +135,7 @@ const HomeScreen = ({ navigation }) => {
   };
 
   const handleBrowseMenu = () => {
-    navigation.navigate('MainCafeteria');
+    navigation.navigate('FoodLocationsHub');
   };
 
   const handleViewProfile = () => {
@@ -328,7 +331,7 @@ const HomeScreen = ({ navigation }) => {
                   <Ionicons name="restaurant" size={24} color="#4CAF50" />
                 </View>
                 <Text style={styles.actionText}>Browse Menu</Text>
-                <Text style={styles.actionSubtext}>NK Food Court</Text>
+                {/* <Text style={styles.actionSubtext}></Text> */}
               </TouchableOpacity>
 
               {/* View Stats */}

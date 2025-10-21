@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import NotificationService from './notificationService';
 
 class UserDataService {
   constructor() {
@@ -74,39 +75,91 @@ class UserDataService {
     }
   }
 
-  async addFoodToMeal(foodData, mealType, date = new Date()) {
-    try {
-      const dailyIntake = await this.getDailyIntake(date);
-      
-      // Add food to specific meal
-      if (!dailyIntake[mealType]) {
-        dailyIntake[mealType] = [];
-      }
-      
-      const foodEntry = {
-        ...foodData,
-        timestamp: new Date().toISOString(),
-        id: Date.now().toString()
-      };
-      
-      dailyIntake[mealType].push(foodEntry);
-      
-      // Recalculate total nutrition
-      dailyIntake.totalNutrition = this.calculateTotalNutrition(dailyIntake);
-      
-      // Save updated data
-      const key = this.getDailyIntakeKey(date);
-      await AsyncStorage.setItem(key, JSON.stringify(dailyIntake));
-      
-      // Also update recent scans
-      await this.addToRecentScans(foodEntry);
-      
-      return dailyIntake;
-    } catch (error) {
-      console.error('Error adding food to meal:', error);
-      return null;
+async addFoodToMeal(foodData, mealType, date = new Date()) {
+  try {
+    const dailyIntake = await this.getDailyIntake(date);
+    
+    // Add food to specific meal
+    if (!dailyIntake[mealType]) {
+      dailyIntake[mealType] = [];
     }
+    
+    const foodEntry = {
+      ...foodData,
+      timestamp: new Date().toISOString(),
+      id: Date.now().toString()
+    };
+    
+    dailyIntake[mealType].push(foodEntry);
+    
+    // Recalculate total nutrition
+    dailyIntake.totalNutrition = this.calculateTotalNutrition(dailyIntake);
+    
+    // Save updated data
+    const key = this.getDailyIntakeKey(date);
+    await AsyncStorage.setItem(key, JSON.stringify(dailyIntake));
+    
+    // Also update recent scans
+    await this.addToRecentScans(foodEntry);
+    
+    // 🔔 NEW: Send meal completion notification
+    await NotificationService.sendMealCompletionNotification(mealType, foodData.nutrition);
+    
+    // 🎯 NEW: Check goal achievements
+    await this.checkGoalAchievements(dailyIntake.totalNutrition);
+    
+    return dailyIntake;
+  } catch (error) {
+    console.error('Error adding food to meal:', error);
+    return null;
   }
+}
+
+// 🎯 NEW: Check goal achievements and send notifications
+async checkGoalAchievements(totalNutrition) {
+  try {
+    const goals = await this.getUserGoals();
+    if (!goals) return;
+    
+    // Check calorie goal
+    if (totalNutrition.calories >= goals.dailyCalories * 0.9 && totalNutrition.calories <= goals.dailyCalories * 1.1) {
+      await NotificationService.sendGoalNotification(
+        'calorie_goal',
+        `Perfect! You've reached ${Math.round((totalNutrition.calories / goals.dailyCalories) * 100)}% of your calorie goal.`
+      );
+    }
+    
+    // Check protein goal
+    if (totalNutrition.protein >= goals.dailyProtein) {
+      await NotificationService.sendGoalNotification(
+        'protein_goal',
+        `Excellent! You've hit your protein target with ${totalNutrition.protein}g.`
+      );
+    }
+    
+    // Check if over calories
+    if (totalNutrition.calories > goals.dailyCalories * 1.2) {
+      await NotificationService.sendGoalNotification(
+        'over_calories',
+        `You've exceeded your calorie goal by ${Math.round(totalNutrition.calories - goals.dailyCalories)} calories.`
+      );
+    }
+    
+    // Check daily completion
+    const caloriePercent = (totalNutrition.calories / goals.dailyCalories) * 100;
+    const proteinPercent = (totalNutrition.protein / goals.dailyProtein) * 100;
+    
+    if (caloriePercent >= 90 && proteinPercent >= 90) {
+      await NotificationService.sendGoalNotification(
+        'daily_complete',
+        'Amazing! You\'ve completed your daily nutrition goals. Keep it up!'
+      );
+    }
+    
+  } catch (error) {
+    console.error('Error checking goal achievements:', error);
+  }
+}
 
   calculateTotalNutrition(dailyIntake) {
     const total = {

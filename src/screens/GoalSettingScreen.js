@@ -8,10 +8,12 @@ import {
   TextInput,
   Alert,
   Dimensions,
+  Switch,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import UserDataService from '../services/userDataService';
+import NotificationService from '../services/notificationService'; // 🔔 NEW
 
 const { width } = Dimensions.get('window');
 
@@ -27,9 +29,11 @@ const GoalSettingScreen = ({ navigation }) => {
   });
 
   const [loading, setLoading] = useState(true);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true); // 🔔 NEW
 
   useEffect(() => {
     loadCurrentGoals();
+    checkNotificationStatus(); // 🔔 NEW
   }, []);
 
   const loadCurrentGoals = async () => {
@@ -42,6 +46,16 @@ const GoalSettingScreen = ({ navigation }) => {
       console.error('Error loading goals:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 🔔 NEW: Check notification status
+  const checkNotificationStatus = async () => {
+    try {
+      const status = await NotificationService.getNotificationStatus();
+      setNotificationsEnabled(status);
+    } catch (error) {
+      console.error('Error checking notification status:', error);
     }
   };
 
@@ -68,6 +82,56 @@ const GoalSettingScreen = ({ navigation }) => {
     setGoals(prev => ({ ...prev, [key]: numValue }));
   };
 
+  // 🔔 NEW: Handle notification toggle
+const handleNotificationToggle = async (value) => {
+  try {
+    setNotificationsEnabled(value);
+    
+    if (value) {
+      // Don't reinitialize if already done today
+      const shouldInit = await NotificationService.shouldInitialize();
+      
+      if (shouldInit) {
+        const initialized = await NotificationService.initialize();
+        if (initialized) {
+          Alert.alert(
+            'Notifications Enabled! 🔔',
+            'You\'ll receive reminders for breakfast, lunch, snacks, and dinner.',
+            [{ text: 'Great!' }]
+          );
+        } else {
+          Alert.alert(
+            'Permission Required',
+            'Please enable notifications in your device settings to receive meal reminders.',
+            [
+              { text: 'Cancel', onPress: () => setNotificationsEnabled(false) },
+              { text: 'OK', onPress: () => setNotificationsEnabled(false) }
+            ]
+          );
+        }
+      } else {
+        Alert.alert(
+          'Notifications Already Active! 🔔',
+          'Your meal reminders are already scheduled for today.',
+          [{ text: 'OK' }]
+        );
+      }
+    } else {
+      await NotificationService.cancelAllNotifications();
+      // Clear the initialization flag
+      await AsyncStorage.removeItem('notifications_initialized_today');
+      Alert.alert(
+        'Notifications Disabled 🔕',
+        'You won\'t receive meal reminders anymore.',
+        [{ text: 'OK' }]
+      );
+    }
+  } catch (error) {
+    console.error('Error toggling notifications:', error);
+    setNotificationsEnabled(!value);
+  }
+};
+
   const presetGoals = {
     sedentary: { dailyCalories: 1800, dailyProtein: 65, dailyCarbs: 225, dailyFat: 60 },
     moderate: { dailyCalories: 2200, dailyProtein: 80, dailyCarbs: 275, dailyFat: 73 },
@@ -81,7 +145,13 @@ const GoalSettingScreen = ({ navigation }) => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <Text>Loading...</Text>
+        <LinearGradient
+          colors={['#4CAF50', '#45a049']}
+          style={styles.loadingGradient}
+        >
+          <Ionicons name="settings" size={48} color="white" />
+          <Text style={styles.loadingText}>Loading your goals...</Text>
+        </LinearGradient>
       </View>
     );
   }
@@ -108,6 +178,57 @@ const GoalSettingScreen = ({ navigation }) => {
       </LinearGradient>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* 🔔 NEW: Notification Settings */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Notification Settings</Text>
+          
+          <View style={styles.notificationCard}>
+            <View style={styles.notificationHeader}>
+              <View style={styles.notificationIcon}>
+                <Ionicons name="notifications" size={24} color="#FF9800" />
+              </View>
+              <View style={styles.notificationContent}>
+                <Text style={styles.notificationTitle}>Meal Reminders</Text>
+                <Text style={styles.notificationDescription}>
+                  Get smart reminders for breakfast, lunch, snacks & dinner
+                </Text>
+              </View>
+              <Switch
+                trackColor={{ false: '#e0e0e0', true: '#4CAF50' }}
+                thumbColor={notificationsEnabled ? '#fff' : '#f4f3f4'}
+                ios_backgroundColor="#e0e0e0"
+                onValueChange={handleNotificationToggle}
+                value={notificationsEnabled}
+                style={styles.switch}
+              />
+            </View>
+            
+            {notificationsEnabled && (
+              <View style={styles.notificationTimes}>
+                <Text style={styles.timesTitle}>Daily Reminders:</Text>
+                <View style={styles.timesList}>
+                  <View style={styles.timeItem}>
+                    <Ionicons name="sunny" size={16} color="#FF9800" />
+                    <Text style={styles.timeText}>Breakfast - 8:00 AM</Text>
+                  </View>
+                  <View style={styles.timeItem}>
+                    <Ionicons name="partly-sunny" size={16} color="#FF9800" />
+                    <Text style={styles.timeText}>Lunch - 1:00 PM</Text>
+                  </View>
+                  <View style={styles.timeItem}>
+                    <Ionicons name="cafe" size={16} color="#FF9800" />
+                    <Text style={styles.timeText}>Snacks - 5:00 PM</Text>
+                  </View>
+                  <View style={styles.timeItem}>
+                    <Ionicons name="moon" size={16} color="#FF9800" />
+                    <Text style={styles.timeText}>Dinner - 8:00 PM</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+
         {/* Quick Presets */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Quick Presets</Text>
@@ -250,7 +371,7 @@ const GoalSettingScreen = ({ navigation }) => {
             <Ionicons name="bulb" size={20} color="#FF9800" />
             <Text style={styles.tipText}>
               Goals are personalized based on your activity level, age, and fitness objectives. 
-              Adjust these values to match your specific needs.
+              Smart notifications will help you stay consistent with your nutrition tracking.
             </Text>
           </View>
         </View>
@@ -268,8 +389,16 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
+  },
+  loadingGradient: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 18,
+    color: 'white',
+    marginTop: 16,
   },
   header: {
     paddingTop: 44,
@@ -318,6 +447,81 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 16,
   },
+  
+  // 🔔 NEW: Notification Styles
+  notificationCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 20,
+    elevation: 4,
+    shadowColor: '#FF9800',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#FF9800',
+  },
+  notificationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  notificationIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFF3E0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  notificationContent: {
+    flex: 1,
+  },
+  notificationTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  notificationDescription: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+  },
+  switch: {
+    transform: [{ scaleX: 1.1 }, { scaleY: 1.1 }],
+  },
+  notificationTimes: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 12,
+  },
+  timesTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 12,
+  },
+  timesList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  timeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '48%',
+    marginBottom: 8,
+  },
+  timeText: {
+    fontSize: 12,
+    color: '#666',
+    marginLeft: 8,
+  },
+
+  // Existing styles continue...
   presetGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',

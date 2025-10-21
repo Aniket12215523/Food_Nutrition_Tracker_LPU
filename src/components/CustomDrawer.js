@@ -12,6 +12,7 @@ import { DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawe
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 
+
 const CustomDrawer = (props) => {
   const { navigation } = props;
 
