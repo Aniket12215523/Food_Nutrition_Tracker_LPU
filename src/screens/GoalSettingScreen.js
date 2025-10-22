@@ -446,6 +446,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
     marginBottom: 16,
+    marginTop: 16,
   },
   
   // 🔔 NEW: Notification Styles

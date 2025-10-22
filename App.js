@@ -17,6 +17,7 @@ import GoalSettingScreen from './src/screens/GoalSettingScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
 
 import { ThemeProvider } from './src/context/ThemeContext';
+import { DataProvider } from './src/context/DataContext';
 
 const Drawer = createDrawerNavigator();
 
@@ -69,6 +70,7 @@ export default function App() {
 
   return (
     <ThemeProvider>
+      <DataProvider>
     <PaperProvider>
       <NavigationContainer>
         <StatusBar style="auto" />
@@ -225,6 +227,7 @@ export default function App() {
         </Drawer.Navigator>
       </NavigationContainer>
     </PaperProvider>
+    </DataProvider>
     </ThemeProvider>
   );
 }

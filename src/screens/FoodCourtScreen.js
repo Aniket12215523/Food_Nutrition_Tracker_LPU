@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import UserDataService from '../services/userDataService';
+import { useData } from '../context/DataContext';
 
 const { width } = Dimensions.get('window');
 
@@ -29,6 +30,7 @@ const FoodCourtScreen = ({ route, navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
+  const { addFoodToMeal } = useData();
 
   // Animation values
   const [fadeAnim] = useState(new Animated.Value(0));
@@ -283,19 +285,24 @@ const FoodCourtScreen = ({ route, navigation }) => {
         method: 'Manual Selection - ' + (locationData?.name || 'Food Court')
       };
       
-      await UserDataService.addFoodToMeal(foodData, mealType);
+      // 🚀 Use context for real-time update
+      const success = await addFoodToMeal(foodData, mealType);
       
-      Alert.alert(
-        'Added to Meal! 🍽️',
-        `${item.name} added to your ${mealType}.`,
-        [
-          { text: 'OK' },
-          { 
-            text: 'View Stats', 
-            onPress: () => navigation.navigate('NutritionStats') 
-          }
-        ]
-      );
+      if (success) {
+        Alert.alert(
+          'Added to Meal! 🍽️',
+          `${item.name} added to your ${mealType}.`,
+          [
+            { text: 'OK' },
+            { 
+              text: 'View Stats', 
+              onPress: () => navigation.navigate('NutritionStats') 
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Error', 'Failed to add item to meal. Please try again.');
+      }
     } catch (error) {
       console.error('Error adding food to meal:', error);
       Alert.alert('Error', 'Failed to add item to meal. Please try again.');

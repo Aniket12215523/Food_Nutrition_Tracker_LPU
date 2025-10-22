@@ -11,48 +11,60 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import UserDataService from '../services/userDataService';
+import { useData } from '../context/DataContext'; // 🔧 Already imported
 
 const { width } = Dimensions.get('window');
 
 const NutritionStatsScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('today'); // today, week, month
-  const [todayData, setTodayData] = useState(null);
   const [weeklyData, setWeeklyData] = useState([]);
-  const [userGoals, setUserGoals] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Changed: no longer main loading state
+
+  // 🔧 UPDATED: Use DataContext for real-time data
+  const { 
+    dailyStats, 
+    userGoals, 
+    loading: dataLoading,
+    refreshData 
+  } = useData();
+
+
 
   useEffect(() => {
-    loadData();
+    // Only load weekly data when needed, today's data comes from context
+    if (selectedPeriod === 'week') {
+      loadWeeklyData();
+    }
   }, [selectedPeriod]);
 
-  const loadData = async () => {
+  // 🔧 UPDATED: Only load weekly data separately
+  const loadWeeklyData = async () => {
     try {
       setLoading(true);
-      
-      // Load user goals
-      const goals = await UserDataService.getUserGoals();
-      setUserGoals(goals);
-
-      if (selectedPeriod === 'today') {
-        const today = await UserDataService.getDailyIntake();
-        setTodayData(today);
-      } else if (selectedPeriod === 'week') {
-        const weekly = await UserDataService.getWeeklyData();
-        setWeeklyData(weekly);
-      }
-      
+      const weekly = await UserDataService.getWeeklyData();
+      setWeeklyData(weekly);
     } catch (error) {
-      console.error('Error loading nutrition stats:', error);
+      console.error('Error loading weekly stats:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const onRefresh = React.useCallback(() => {
+  // 🔧 UPDATED: Use context refresh for today, load weekly if needed
+  const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
-    loadData().then(() => setRefreshing(false));
-  }, [selectedPeriod]);
+    
+    // Always refresh context data
+    await refreshData();
+    
+    // Also refresh weekly data if that's the selected period
+    if (selectedPeriod === 'week') {
+      await loadWeeklyData();
+    }
+    
+    setRefreshing(false);
+  }, [selectedPeriod, refreshData]);
 
   const getProgressPercentage = (current, target) => {
     return Math.min((current / target) * 100, 100);
@@ -64,10 +76,11 @@ const NutritionStatsScreen = ({ navigation }) => {
     return '#F44336';
   };
 
+  // 🔧 UPDATED: Use dailyStats from context instead of todayData
   const renderTodayStats = () => {
-    if (!todayData || !userGoals) return null;
+    if (!dailyStats || !userGoals) return null;
 
-    const { totalNutrition } = todayData;
+    const { totalNutrition } = dailyStats;
     
     return (
       <View>
@@ -171,18 +184,18 @@ const NutritionStatsScreen = ({ navigation }) => {
                   {mealType.charAt(0).toUpperCase() + mealType.slice(1)}
                 </Text>
                 <Text style={styles.mealCount}>
-                  {todayData[mealType]?.length || 0} item{(todayData[mealType]?.length || 0) !== 1 ? 's' : ''}
+                  {dailyStats[mealType]?.length || 0} item{(dailyStats[mealType]?.length || 0) !== 1 ? 's' : ''}
                 </Text>
               </View>
               
-              {todayData[mealType]?.map((food, index) => (
+              {dailyStats[mealType]?.map((food, index) => (
                 <View key={food.id || index} style={styles.foodItem}>
                   <Text style={styles.foodName}>{food.foodName}</Text>
                   <Text style={styles.foodCalories}>{food.nutrition?.calories || 0} cal</Text>
                 </View>
               ))}
               
-              {(!todayData[mealType] || todayData[mealType].length === 0) && (
+              {(!dailyStats[mealType] || dailyStats[mealType].length === 0) && (
                 <Text style={styles.emptyMeal}>No food logged yet</Text>
               )}
             </View>
@@ -194,22 +207,28 @@ const NutritionStatsScreen = ({ navigation }) => {
           <Text style={styles.sectionTitle}>Micronutrients</Text>
           <View style={styles.microGrid}>
             <View style={styles.microItem}>
-              <Text style={styles.microValue}>{totalNutrition.fiber}g</Text>
+              <Text style={styles.microValue}>{totalNutrition.fiber || 0}g</Text>
               <Text style={styles.microLabel}>Fiber</Text>
             </View>
             <View style={styles.microItem}>
-              <Text style={styles.microValue}>{totalNutrition.iron}mg</Text>
+              <Text style={styles.microValue}>{totalNutrition.iron || 0}mg</Text>
               <Text style={styles.microLabel}>Iron</Text>
             </View>
             <View style={styles.microItem}>
-              <Text style={styles.microValue}>{totalNutrition.calcium}mg</Text>
+              <Text style={styles.microValue}>{totalNutrition.calcium || 0}mg</Text>
               <Text style={styles.microLabel}>Calcium</Text>
             </View>
             <View style={styles.microItem}>
-              <Text style={styles.microValue}>{totalNutrition.vitaminC}mg</Text>
+              <Text style={styles.microValue}>{totalNutrition.vitaminC || 0}mg</Text>
               <Text style={styles.microLabel}>Vitamin C</Text>
             </View>
           </View>
+        </View>
+
+        {/* 🔧 NEW: Real-time Update Indicator */}
+        <View style={styles.updateIndicator}>
+          <Ionicons name="sync" size={16} color="#4CAF50" />
+          <Text style={styles.updateText}>Data updates in real-time</Text>
         </View>
       </View>
     );
@@ -267,6 +286,9 @@ const NutritionStatsScreen = ({ navigation }) => {
     );
   };
 
+  // 🔧 UPDATED: Check both data loading and weekly loading
+  const isLoading = dataLoading || (selectedPeriod === 'week' && loading);
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -315,8 +337,9 @@ const NutritionStatsScreen = ({ navigation }) => {
         }
         showsVerticalScrollIndicator={false}
       >
-        {loading ? (
+        {isLoading ? (
           <View style={styles.loadingContainer}>
+            <Ionicons name="analytics" size={48} color="#4CAF50" />
             <Text style={styles.loadingText}>Loading nutrition data...</Text>
           </View>
         ) : (
@@ -398,6 +421,7 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
     color: '#666',
+    marginTop: 16,
   },
   section: {
     paddingHorizontal: 20,
@@ -595,6 +619,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginLeft: 16,
+  },
+  // 🔧 NEW: Real-time update indicator styles
+  updateIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#E8F5E8',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginHorizontal: 20,
+    marginBottom: 16,
+  },
+  updateText: {
+    fontSize: 12,
+    color: '#4CAF50',
+    marginLeft: 6,
+    fontWeight: '500',
   },
   bottomSpacing: {
     height: 20,

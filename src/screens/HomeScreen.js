@@ -16,23 +16,35 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import UserDataService from '../services/userDataService';
 import NotificationService from '../services/notificationService';
+import { useData } from '../context/DataContext'; // 🔧 NEW: Import DataContext
 
 const { width, height } = Dimensions.get('window');
 
 const HomeScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [dailyStats, setDailyStats] = useState(null);
-  const [userGoals, setUserGoals] = useState(null);
-  const [recentScans, setRecentScans] = useState([]);
-  const [loading, setLoading] = useState(true);
+
+  // 🔧 UPDATED: Use DataContext for real-time updates
+  const { 
+    dailyStats, 
+    userGoals, 
+    recentScans, 
+    loading, 
+    refreshData 
+  } = useData();
+
+  // Remove old state variables - they're now handled by DataContext
+  // const [dailyStats, setDailyStats] = useState(null); // ❌ Remove
+  // const [userGoals, setUserGoals] = useState(null); // ❌ Remove
+  // const [recentScans, setRecentScans] = useState([]); // ❌ Remove
+  // const [loading, setLoading] = useState(true); // ❌ Remove
 
   // Animation values
   const [fadeAnim] = useState(new Animated.Value(0));
   const [slideAnim] = useState(new Animated.Value(50));
 
   useEffect(() => {
-    loadUserData();
+    // 🔧 REMOVED: loadUserData() - now handled by DataContext
     
     // Update time every minute
     const timer = setInterval(() => {
@@ -53,37 +65,29 @@ const HomeScreen = ({ navigation }) => {
       }),
     ]).start();
 
+    // Check missed meals (but don't load data)
+    checkMissedMealsOnly();
+
     return () => clearInterval(timer);
   }, []);
 
-  const loadUserData = async () => {
+  // 🔧 NEW: Separate function for missed meals check only
+  const checkMissedMealsOnly = async () => {
     try {
-      setLoading(true);
-      
-      // Load all user data
-      const [todayIntake, goals, scans] = await Promise.all([
-        UserDataService.getDailyIntake(),
-        UserDataService.getUserGoals(),
-        UserDataService.getRecentScans(4)
-      ]);
-
-      setDailyStats(todayIntake);
-      setUserGoals(goals);
-      setRecentScans(scans);
-
       await NotificationService.checkMissedMeals();
-      
     } catch (error) {
-      console.error('Error loading user data:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error checking missed meals:', error);
     }
   };
 
-  const onRefresh = React.useCallback(() => {
+  // 🔧 REMOVED: Old loadUserData function - not needed anymore
+
+  // 🔧 UPDATED: Use DataContext refresh
+  const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
-    loadUserData().then(() => setRefreshing(false));
-  }, []);
+    await refreshData(); // Use context refresh function
+    setRefreshing(false);
+  }, [refreshData]);
 
   const getGreeting = () => {
     const hour = currentTime.getHours();
@@ -150,7 +154,6 @@ const HomeScreen = ({ navigation }) => {
     navigation.navigate('GoalSetting');
   };
 
-  // 🎯 NEW: Handle drawer menu
   const handleDrawerOpen = () => {
     navigation.openDrawer();
   };
@@ -200,7 +203,6 @@ const HomeScreen = ({ navigation }) => {
             }
           ]}
         >
-          {/* 🎯 FIXED: Add drawer menu button */}
           <TouchableOpacity style={styles.drawerButton} onPress={handleDrawerOpen}>
             <Ionicons name="menu" size={24} color="white" />
           </TouchableOpacity>
@@ -331,7 +333,6 @@ const HomeScreen = ({ navigation }) => {
                   <Ionicons name="restaurant" size={24} color="#4CAF50" />
                 </View>
                 <Text style={styles.actionText}>Browse Menu</Text>
-                {/* <Text style={styles.actionSubtext}></Text> */}
               </TouchableOpacity>
 
               {/* View Stats */}
@@ -561,7 +562,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 20,
   },
-  // 🎯 FIXED: Add drawer button styles
   drawerButton: {
     width: 44,
     height: 44,
