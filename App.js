@@ -201,6 +201,21 @@ export default function App() {
               drawerItemStyle: { display: 'none' } // Hidden from drawer
             }}
           />
+
+          <Drawer.Screen 
+          name="ProteinHouse" 
+          component={FoodLocationsHubScreen}
+          options={{ 
+            title: 'Protein House',
+            headerShown: false,
+            drawerLabel: 'Protein House',
+            drawerIcon: ({ color, size }) => (
+              <Ionicons name="fitness" size={size} color={color} />
+            )
+          }}
+          initialParams={{ initialSection: 'proteinHouse' }}
+        />
+        
           <Drawer.Screen 
           name="Profile" 
           component={ProfileScreen}

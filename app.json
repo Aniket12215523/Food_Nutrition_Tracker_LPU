@@ -26,7 +26,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/lpufoodapp.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
@@ -44,7 +44,7 @@
       "package": "com.aniket7992.LPUFoodScanner"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/lpufoodapp.png"
     },
     "plugins": [
       [
