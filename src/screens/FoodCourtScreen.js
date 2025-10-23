@@ -324,7 +324,7 @@ const FoodCourtScreen = ({ route, navigation }) => {
       locationData?.name?.includes('NK Food Court');
 
     if (isNKFoodCourt) {
-      console.log
+      console.log('🔍 Loading NK Food Court menu...');
       return [
         // North Indian Main Course
         {
@@ -448,7 +448,8 @@ const FoodCourtScreen = ({ route, navigation }) => {
           weight: '60g'
         }
       ];
-    };
+    }
+  };
 
     // Get all food items
  const allFoodItems = getFoodItems();
