@@ -42,9 +42,16 @@ const FoodCourtScreen = ({ route, navigation }) => {
      console.log('🔍 FoodCourtScreen - locationData:', locationData);
 
 // 🔧 COMPLETE Boys Hostel Mess Menu (BH-1 to BH-8)
-    if (courtId?.includes('bh-') || courtId?.includes('boys-hostel') || locationData?.name?.toLowerCase().includes('boys hostel')) {
+    const isBoyHostel = 
+    courtId?.includes('bh') && courtId?.includes('mess') ||
+    locationData?.name?.includes('BH-') ||
+    locationData?.name?.includes('Boys Hostel') ||
+    locationData?.type === 'Mess' ||
+    locationData?.id?.includes('bh') && locationData?.id?.includes('mess');
+
+    if (isBoyHostel) {
     console.log('🍽️ Loading Boys Hostel Mess menu...');
-  return [
+      return [
     // === BREAKFAST ITEMS ===
     // Wednesday & Friday
     { id: 'bh_poori', name: 'Poori', price: 0, category: 'Breakfast', nutrition: { calories: 150, protein: 4, carbs: 28, fat: 4, fiber: 2 }, healthScore: 6, ingredients: ['Wheat flour', 'Oil', 'Salt'], weight: '2 pieces' },
@@ -208,8 +215,13 @@ const FoodCourtScreen = ({ route, navigation }) => {
 }
 
 
-  // 🔧 NEW: Protein House Menu
-  if (courtId === 'protein-house' || locationData?.name?.toLowerCase().includes('protein house')) {
+  // 🔧 PROTEIN HOUSE MENU
+    const isProteinHouse = 
+      courtId === 'protein-house' || 
+      locationData?.name?.toLowerCase().includes('protein house') ||
+      locationData?.name?.toLowerCase().includes('protein');
+
+    if (isProteinHouse) {
     console.log('🏋️ Loading Protein House menu...');
     return [
       { 
@@ -305,10 +317,14 @@ const FoodCourtScreen = ({ route, navigation }) => {
       }
     ];
   }
-    // For NK Food Court, use our nutrition database
-    if (courtId === 'nk-food-court') {
-      console.log('🍽️ Loading NK Food Court menu...');
-      
+
+     // 🔧 NK FOOD COURT MENU (Your existing items)
+    const isNKFoodCourt = 
+      courtId === 'nk-food-court' ||
+      locationData?.name?.includes('NK Food Court');
+
+    if (isNKFoodCourt) {
+      console.log
       return [
         // North Indian Main Course
         {
@@ -432,24 +448,10 @@ const FoodCourtScreen = ({ route, navigation }) => {
           weight: '60g'
         }
       ];
-    }
-    
-    // For other locations, return sample data
-    return [
-      {
-        id: 'sample-item',
-        name: 'Sample Food Item',
-        category: 'General',
-        price: 50,
-        nutrition: { calories: 200, protein: 8, carbs: 30, fat: 6, fiber: 3 },
-        healthScore: 6,
-        isVeg: true,
-        ingredients: ['sample ingredients'],
-        description: 'Menu coming soon for this location',
-        weight: '100g'
-      }
-    ];
-  };
+    };
+
+    // Get all food items
+ const allFoodItems = getFoodItems();
 
   useEffect(() => {
     loadFoodItems();
