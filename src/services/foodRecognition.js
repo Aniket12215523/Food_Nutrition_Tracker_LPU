@@ -1,16 +1,17 @@
 import * as FileSystem from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
+import Constants from 'expo-constants';
 
 class FoodRecognitionService {
   constructor() {
     this.APIs = {
-      GEMINI_KEY: process.env.EXPO_PUBLIC_GEMINI_API_KEY,
+      GEMINI_KEY: Constants.expoConfig?.extra?.GEMINI_API_KEY || process.env.EXPO_PUBLIC_GEMINI_API_KEY,      
       GEMINI_URL: 'https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent',
 
-      HF_KEY: process.env.EXPO_PUBLIC_HUGGINGFACE_API_KEY,
+      HF_KEY: Constants.expoConfig?.extra?.HUGGINGFACE_API_KEY || process.env.EXPO_PUBLIC_HUGGINGFACE_API_KEY,
       HF_URL: 'https://api-inference.huggingface.co/models/google/vit-base-patch16-224',
 
-      GOOGLE_VISION_KEY: process.env.EXPO_PUBLIC_GOOGLE_VISION_KEY,
+      GOOGLE_VISION_KEY: Constants.expoConfig?.extra?.GOOGLE_VISION_KEY || process.env.EXPO_PUBLIC_GOOGLE_VISION_KEY,
       GOOGLE_VISION_URL: 'https://vision.googleapis.com/v1/images:annotate',
     };
 
@@ -50,73 +51,115 @@ class FoodRecognitionService {
     }
   }
 
-  // 🎯 MAIN METHOD: Support user input + image analysis
-  async recognizeFood(imageUri, userInput = null) {
-    const base64Image = await this.imageToBase64(imageUri);
+  // Add this method to your FoodRecognitionService class
+async optimizeImageForAI(imageUri) {
+  try {
+    console.log('🖼️ Optimizing image for AI processing...');
     
-    const prompt = userInput ? 
-      this.createUserAssistedPrompt(userInput) : 
-      this.createQuantityDetectionPrompt();
-
-    const methods = [
-      { name: 'Gemini Vision', func: () => this.analyzeWithGemini(base64Image, prompt, userInput) },
-      { name: 'Hugging Face Vision', func: () => this.analyzeWithHuggingFace(base64Image) },
-      { name: 'Google Vision', func: () => this.analyzeWithGoogleVision(base64Image) },
-    ];
-
-    for (const { name, func } of methods) {
-      try {
-        console.log(`🧠 Trying ${name}...`);
-        const result = await func();
-        if (result) {
-          console.log(`✅ ${name} succeeded!`);
-          return { ...result, usedModel: name, imageUri, userInput };
-        }
-      } catch (error) {
-        console.warn(`⚠️ ${name} failed:`, error.message);
+    // Compress and resize image for faster processing
+    const optimized = await ImageManipulator.manipulateAsync(
+      imageUri,
+      [
+        // Resize to maximum 800px width (maintains aspect ratio)
+        { resize: { width: 800 } }
+      ],
+      {
+        // Compress to reduce file size significantly
+        compress: 0.7,
+        format: ImageManipulator.SaveFormat.JPEG,
+        base64: true
       }
-    }
+    );
 
-    const fallback = this.getFallbackData(imageUri, userInput);
-    console.log('⚡ All AIs failed → using fallback');
-    return { ...fallback, usedModel: 'Local Fallback' };
+    console.log('✅ Image optimized for faster AI processing');
+    return optimized.base64;
+  } catch (error) {
+    console.warn('⚠️ Image optimization failed, using original:', error.message);
+    // Fallback to original method
+    return await this.imageToBase64(imageUri);
+  }
+}
+
+
+  // 🎯 MAIN METHOD: Support user input + image analysis
+async recognizeFood(imageUri, userInput = null) {
+  console.log('🎯 Starting food recognition...');
+  const startTime = Date.now();
+
+  // Use optimized image processing instead of slow original method
+  const base64Image = await this.optimizeImageForAI(imageUri);
+  
+  console.log(`⚡ Image processed in ${Date.now() - startTime}ms`);
+
+  // Enhanced prompt for better accuracy and speed
+  const prompt = userInput ? 
+    this.createUserAssistedPrompt(userInput) : 
+    this.createOptimizedQuantityDetectionPrompt();
+
+  // Try methods in order of speed and accuracy
+  const methods = [
+    { 
+      name: 'Gemini Vision', 
+      func: () => this.analyzeWithGemini(base64Image, prompt, userInput) 
+    },
+    { 
+      name: 'Hugging Face Vision', 
+      func: () => this.analyzeWithHuggingFace(base64Image) 
+    },
+    { 
+      name: 'Google Vision', 
+      func: () => this.analyzeWithGoogleVision(base64Image) 
+    }
+  ];
+
+  for (const { name, func } of methods) {
+    try {
+      console.log(`🧠 Trying ${name}...`);
+      const methodStart = Date.now();
+      
+      const result = await func();
+      
+      if (result) {
+        const totalTime = Date.now() - startTime;
+        console.log(`✅ ${name} succeeded in ${Date.now() - methodStart}ms (total: ${totalTime}ms)!`);
+        return { ...result, usedModel: name, imageUri, userInput, processingTime: totalTime };
+      }
+    } catch (error) {
+      console.warn(`⚠️ ${name} failed:`, error.message);
+    }
   }
 
-  createQuantityDetectionPrompt() {
-    return `You are an expert food analyst. Look at this image and COUNT EXACTLY how many of each food item you see.
+  // Fallback
+  const fallback = this.getFallbackData(imageUri, userInput);
+  console.log('🔄 All AIs failed, using fallback');
+  return { ...fallback, usedModel: 'Local Fallback', processingTime: Date.now() - startTime };
+}
 
-CRITICAL INSTRUCTIONS:
-1. COUNT each visible food item carefully
-2. Be very specific about quantities (1, 2, 3, 4, 5, 6, 7, 8, etc.)
-3. Don't estimate - COUNT what you actually see
-4. If items are stacked/overlapping, count visible portions
-5. Identify specific food names (Pizza, Burger, Dosa, Paratha, etc.)
 
-EXAMPLE RESPONSE:
+ createOptimizedQuantityDetectionPrompt() {
+  return `Analyze this food image and return EXACTLY this JSON structure with NO extra text:
+
 {
   "detectedItems": [
     {
-      "foodName": "Margherita Pizza",
+      "foodName": "Plain Paratha",
       "visibleCount": 2,
-      "perUnitWeight": "150g",
-      "totalWeight": "300g"
-    },
-    {
-      "foodName": "French Fries",
-      "visibleCount": 1,
-      "perUnitWeight": "100g", 
-      "totalWeight": "100g"
+      "perUnitWeight": "70g"
     }
   ],
   "confidence": 0.9
 }
 
-IMPORTANT: 
-- Be specific with food names (Margherita Pizza, not just Pizza)
-- Count accurately - this is more important than anything else
-- Don't artificially limit nutrition values
-- Return ONLY the JSON structure above`;
-  }
+STRICT RULES:
+- Return ONLY valid JSON, no explanations or markdown
+- COUNT visible food items (1, 2, 3, 4...)
+- Use specific Indian food names (Butter Naan, Aloo Paratha, Mix Veg)
+- Realistic weights: Roti/Paratha: 50-70g, Naan: 80g, Rice serving: 150g, Dal: 150g
+- If multiple food types visible, list each separately
+- Start response with { and end with }`;
+}
+
+
 
   createUserAssistedPrompt(userInput) {
     return `The user has provided this information about the food: "${userInput}"
@@ -144,57 +187,85 @@ Return the same JSON structure as before, but use the user's food identification
   }
 
   async analyzeWithGemini(base64Image, prompt, userInput = null) {
-    if (!this.APIs.GEMINI_KEY) throw new Error('Missing Gemini API key');
-
-    try {
-      const url = `${this.APIs.GEMINI_URL}?key=${this.APIs.GEMINI_KEY}`;
-      const response = await this.safeFetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: prompt },
-              { inline_data: { mime_type: 'image/jpeg', data: base64Image } },
-            ],
-          }],
-        }),
-      });
-
-      const text = response?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!text) {
-        throw new Error('Gemini returned no text output');
-      }
-
-      console.log('✅ Gemini response received, processing...');
-      return this.processQuantityResponse(text, userInput);
-
-    } catch (error) {
-      console.error('❌ Gemini error:', error);
-      throw error;
-    }
+  if (!this.APIs.GEMINI_KEY) {
+    throw new Error('Missing Gemini API key');
   }
 
-  async processQuantityResponse(text, userInput = null) {
-    try {
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        try {
-          const parsedData = JSON.parse(jsonMatch[0]);
-          console.log('✅ Successfully parsed quantity data');
-          return await this.formatQuantityResponse(parsedData, userInput);
-        } catch (jsonError) {
-          console.warn('⚠️ JSON parsing failed, using intelligent extraction');
+  try {
+    console.log('🚀 Calling Gemini API...');
+    const url = `${this.APIs.GEMINI_URL}?key=${this.APIs.GEMINI_KEY}`;
+    
+    const response = await this.safeFetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: prompt },
+            { 
+              inline_data: { 
+                mime_type: 'image/jpeg', 
+                data: base64Image 
+              } 
+            }
+          ]
+        }],
+        generationConfig: {
+          temperature: 0.1,  // Lower temperature for consistent results
+          maxOutputTokens: 1024  // Limit response length
         }
-      }
+      })
+    }, 10000); // 10 second timeout
 
-      return this.extractQuantitiesFromText(text, userInput);
-      
-    } catch (error) {
-      console.error('❌ Quantity processing failed:', error);
-      throw error;
+    const text = response?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) {
+      throw new Error('Gemini returned no text output');
     }
+
+    console.log('✅ Gemini response received, processing...');
+    return this.processQuantityResponse(text, userInput);
+  } catch (error) {
+    console.error('❌ Gemini error:', error);
+    throw error;
   }
+}
+
+
+async processQuantityResponse(text, userInput = null) {
+  try {
+    console.log('🔍 Raw Gemini response:', text.substring(0, 200) + '...');
+    
+    // Clean the text first
+    let cleanText = text.trim();
+    
+    // Remove markdown code blocks if present
+    cleanText = cleanText.replace(/``````\n?/g, '');
+    
+    // Find JSON object more reliably
+    const jsonStart = cleanText.indexOf('{');
+    const jsonEnd = cleanText.lastIndexOf('}') + 1;
+    
+    if (jsonStart !== -1 && jsonEnd > jsonStart) {
+      const jsonString = cleanText.substring(jsonStart, jsonEnd);
+      console.log('🎯 Extracted JSON:', jsonString);
+      
+      try {
+        const parsedData = JSON.parse(jsonString);
+        console.log('✅ Successfully parsed quantity data');
+        return await this.formatQuantityResponse(parsedData, userInput);
+      } catch (jsonError) {
+        console.warn('⚠️ JSON parsing still failed:', jsonError.message);
+      }
+    }
+    
+    console.log('🔍 Using intelligent extraction fallback...');
+    return this.extractQuantitiesFromText(text, userInput);
+  } catch (error) {
+    console.error('❌ Quantity processing failed:', error);
+    throw error;
+  }
+}
+
 
   // 🎯 ENHANCED: Format response with AI nutrition generation
   async formatQuantityResponse(data, userInput = null) {

@@ -17,15 +17,34 @@ const { width } = Dimensions.get('window');
 const ScanResultScreen = ({ route, navigation }) => {
   const { imageUri, foodData, userInput } = route.params;
 
+  // 🎯 Safe rendering helper to prevent Text component errors
+  const safeRender = (value, fallback = 'N/A') => {
+    if (value === null || value === undefined || value === '' || value === 'undefined') {
+      return fallback;
+    }
+    return String(value);
+  };
+
+  // 🎯 Safe number rendering
+  const safeNumber = (value, fallback = 0) => {
+    const num = parseFloat(value);
+    return isNaN(num) ? fallback : num;
+  };
+
+  // 🎯 Debug logging (remove in production)
+  console.log('🔍 foodData received:', JSON.stringify(foodData, null, 2));
+
   const getHealthScoreColor = (score) => {
-    if (score >= 8) return '#4CAF50';
-    if (score >= 6) return '#FF9800';
+    const numScore = safeNumber(score, 5);
+    if (numScore >= 8) return '#4CAF50';
+    if (numScore >= 6) return '#FF9800';
     return '#F44336';
   };
 
   const getConfidenceColor = (confidence) => {
-    if (confidence >= 0.8) return '#4CAF50';
-    if (confidence >= 0.6) return '#FF9800';
+    const numConfidence = safeNumber(confidence, 0.5);
+    if (numConfidence >= 0.8) return '#4CAF50';
+    if (numConfidence >= 0.6) return '#FF9800';
     return '#F44336';
   };
 
@@ -33,27 +52,39 @@ const ScanResultScreen = ({ route, navigation }) => {
     Alert.alert('Saved!', 'Food item saved to your history');
   };
 
-const handleAddToMeal = async () => {
-  try {
-    // Determine current meal time
-    const mealType = UserDataService.getMealTimeFromHour();
-    
-    // Save to user's daily intake
-    await UserDataService.addFoodToMeal(foodData, mealType);
-    
-    Alert.alert(
-      'Added to Meal!', 
-      `Added to your ${mealType} for today.`,
-      [
-        { text: 'OK' },
-        { text: 'View Stats', onPress: () => navigation.navigate('NutritionStats') }
-      ]
+  const handleAddToMeal = async () => {
+    try {
+      // Determine current meal time
+      const mealType = UserDataService.getMealTimeFromHour();
+      
+      // Save to user's daily intake
+      await UserDataService.addFoodToMeal(foodData, mealType);
+      
+      Alert.alert(
+        'Added to Meal!', 
+        `Added to your ${mealType} for today.`,
+        [
+          { text: 'OK' },
+          { text: 'View Stats', onPress: () => navigation.navigate('NutritionStats') }
+        ]
+      );
+    } catch (error) {
+      console.error('Error adding to meal:', error);
+      Alert.alert('Error', 'Failed to add to meal. Please try again.');
+    }
+  };
+
+  // Ensure foodData exists and has required structure
+  if (!foodData) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.errorText}>No food data available</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backButtonText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
     );
-  } catch (error) {
-    console.error('Error adding to meal:', error);
-    Alert.alert('Error', 'Failed to add to meal. Please try again.');
   }
-};
 
   return (
     <ScrollView style={styles.container}>
@@ -65,13 +96,13 @@ const handleAddToMeal = async () => {
           <View style={styles.badgeContainer}>
             <View style={[styles.confidenceBadge, { backgroundColor: getConfidenceColor(foodData.confidence) }]}>
               <Text style={styles.badgeText}>
-                {Math.round(foodData.confidence * 100)}% confident
+                {Math.round(safeNumber(foodData.confidence, 0) * 100)}% confident
               </Text>
             </View>
             
             <View style={[styles.healthBadge, { backgroundColor: getHealthScoreColor(foodData.healthScore) }]}>
               <Text style={styles.badgeText}>
-                Health: {foodData.healthScore}/10
+                Health: {safeRender(foodData.healthScore, '5')}/10
               </Text>
             </View>
           </View>
@@ -80,25 +111,25 @@ const handleAddToMeal = async () => {
 
       {/* Food Information */}
       <View style={styles.contentContainer}>
-        <Text style={styles.foodName}>{foodData.foodName}</Text>
-        <Text style={styles.category}>{foodData.category}</Text>
-        <Text style={styles.servingSize}>Serving: {foodData.servingSize}</Text>
+        <Text style={styles.foodName}>{safeRender(foodData.foodName, 'Unknown Food')}</Text>
+        <Text style={styles.category}>{safeRender(foodData.category, 'Unknown Category')}</Text>
+        <Text style={styles.servingSize}>Serving: {safeRender(foodData.servingSize, 'Standard portion')}</Text>
 
-        {/* 🎯 User Input Display */}
+        {/* User Input Display */}
         {userInput && (
           <View style={styles.userInputContainer}>
             <Ionicons name="person" size={16} color="#4CAF50" />
-            <Text style={styles.userInputText}>User provided: "{userInput}"</Text>
+            <Text style={styles.userInputText}>User provided: "{safeRender(userInput)}"</Text>
           </View>
         )}
 
         {/* Method Info */}
         <View style={styles.methodContainer}>
           <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-          <Text style={styles.methodText}>Analyzed via {foodData.method}</Text>
+          <Text style={styles.methodText}>Analyzed via {safeRender(foodData.method, 'AI Analysis')}</Text>
         </View>
 
-        {/* 🎯 NEW: AI Enhanced Notice */}
+        {/* AI Enhanced Notice */}
         {foodData.hasAIGeneratedNutrition && (
           <View style={styles.aiEnhancedContainer}>
             <Ionicons name="sparkles" size={16} color="#FF9800" />
@@ -108,154 +139,158 @@ const handleAddToMeal = async () => {
           </View>
         )}
 
-        {/* 🎯 ENHANCED: Individual Items Breakdown */}
-        {foodData.individualItems && foodData.individualItems.length > 0 && (
+        {/* Individual Items Breakdown */}
+        {foodData.individualItems && Array.isArray(foodData.individualItems) && foodData.individualItems.length > 0 && (
           <View style={styles.individualItemsContainer}>
             <Text style={styles.sectionTitle}>
-              Individual Items {foodData.totalFoodPieces && `(${foodData.totalFoodPieces} pieces total)`}
+              Individual Items {foodData.totalFoodPieces && `(${safeRender(foodData.totalFoodPieces)} pieces total)`}
             </Text>
             
-            {foodData.individualItems.map((item, index) => (
-              <View key={index} style={styles.individualItem}>
-                <View style={styles.itemHeader}>
-                  <Text style={styles.itemName}>{item.name}</Text>
-                  <View style={styles.itemQuantity}>
-                    <Text style={styles.quantityText}>
-                      {item.visibleCount}x
-                    </Text>
-                    <Text style={styles.weightText}>
-                      {item.totalWeight || `${item.visibleCount} piece${item.visibleCount > 1 ? 's' : ''}`}
-                    </Text>
-                  </View>
-                </View>
-                
-                {/* Per Unit Info */}
-                {item.perUnitNutrition && (
-                  <View style={styles.perUnitInfo}>
-                    <Text style={styles.perUnitLabel}>
-                      Per piece ({item.perUnitWeight || 'avg'}):
-                    </Text>
-                    <View style={styles.perUnitNutrition}>
-                      <Text style={styles.nutritionItem}>
-                        {item.perUnitNutrition.calories} cal
+            {foodData.individualItems.map((item, index) => {
+              if (!item) return null; // Skip null items
+              
+              return (
+                <View key={index} style={styles.individualItem}>
+                  <View style={styles.itemHeader}>
+                    <Text style={styles.itemName}>{safeRender(item.name, `Item ${index + 1}`)}</Text>
+                    <View style={styles.itemQuantity}>
+                      <Text style={styles.quantityText}>
+                        {safeRender(item.visibleCount, '1')}x
                       </Text>
-                      <Text style={styles.nutritionItem}>
-                        {item.perUnitNutrition.protein}g protein
+                      <Text style={styles.weightText}>
+                        {safeRender(item.totalWeight, `${safeRender(item.visibleCount, '1')} piece${safeNumber(item.visibleCount, 1) > 1 ? 's' : ''}`)}
                       </Text>
-                      <Text style={styles.nutritionItem}>
-                        {item.perUnitNutrition.carbs}g carbs
-                      </Text>
-                      <Text style={styles.nutritionItem}>
-                        {item.perUnitNutrition.fat}g fat
-                      </Text>
-                      {item.perUnitNutrition.fiber > 0 && (
-                        <Text style={styles.nutritionItem}>
-                          {item.perUnitNutrition.fiber}g fiber
-                        </Text>
-                      )}
                     </View>
                   </View>
-                )}
-                
-                {/* Total for this item */}
-                <View style={styles.itemTotalInfo}>
-                  <Text style={styles.itemTotalLabel}>
-                    Total for {item.visibleCount} piece{item.visibleCount > 1 ? 's' : ''}:
-                  </Text>
-                  <View style={styles.itemTotalNutrition}>
-                    <Text style={[styles.nutritionItem, styles.totalNutrition]}>
-                      {item.totalNutrition?.calories || item.nutrition?.calories} cal
+                  
+                  {/* Per Unit Info */}
+                  {item.perUnitNutrition && (
+                    <View style={styles.perUnitInfo}>
+                      <Text style={styles.perUnitLabel}>
+                        Per piece ({safeRender(item.perUnitWeight, 'avg')}):
+                      </Text>
+                      <View style={styles.perUnitNutrition}>
+                        <Text style={styles.nutritionItem}>
+                          {safeRender(item.perUnitNutrition.calories, '0')} cal
+                        </Text>
+                        <Text style={styles.nutritionItem}>
+                          {safeRender(item.perUnitNutrition.protein, '0')}g protein
+                        </Text>
+                        <Text style={styles.nutritionItem}>
+                          {safeRender(item.perUnitNutrition.carbs, '0')}g carbs
+                        </Text>
+                        <Text style={styles.nutritionItem}>
+                          {safeRender(item.perUnitNutrition.fat, '0')}g fat
+                        </Text>
+                        {safeNumber(item.perUnitNutrition?.fiber, 0) > 0 && (
+                          <Text style={styles.nutritionItem}>
+                            {safeRender(item.perUnitNutrition.fiber)}g fiber
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                  )}
+                  
+                  {/* Total for this item */}
+                  <View style={styles.itemTotalInfo}>
+                    <Text style={styles.itemTotalLabel}>
+                      Total for {safeRender(item.visibleCount, '1')} piece{safeNumber(item.visibleCount, 1) > 1 ? 's' : ''}:
                     </Text>
-                    <Text style={[styles.nutritionItem, styles.totalNutrition]}>
-                      {item.totalNutrition?.protein || item.nutrition?.protein}g protein
-                    </Text>
-                    <Text style={[styles.nutritionItem, styles.totalNutrition]}>
-                      {item.totalNutrition?.carbs || item.nutrition?.carbs}g carbs
-                    </Text>
-                    <Text style={[styles.nutritionItem, styles.totalNutrition]}>
-                      {item.totalNutrition?.fat || item.nutrition?.fat}g fat
-                    </Text>
+                    <View style={styles.itemTotalNutrition}>
+                      <Text style={[styles.nutritionItem, styles.totalNutrition]}>
+                        {safeRender(item.totalNutrition?.calories || item.nutrition?.calories, '0')} cal
+                      </Text>
+                      <Text style={[styles.nutritionItem, styles.totalNutrition]}>
+                        {safeRender(item.totalNutrition?.protein || item.nutrition?.protein, '0')}g protein
+                      </Text>
+                      <Text style={[styles.nutritionItem, styles.totalNutrition]}>
+                        {safeRender(item.totalNutrition?.carbs || item.nutrition?.carbs, '0')}g carbs
+                      </Text>
+                      <Text style={[styles.nutritionItem, styles.totalNutrition]}>
+                        {safeRender(item.totalNutrition?.fat || item.nutrition?.fat, '0')}g fat
+                      </Text>
+                    </View>
                   </View>
+                  
+                  {/* AI Generated Badge */}
+                  {item.generatedByAI && (
+                    <View style={styles.aiGeneratedBadge}>
+                      <Ionicons name="sparkles" size={12} color="#FF9800" />
+                      <Text style={styles.aiGeneratedText}>AI generated nutrition</Text>
+                    </View>
+                  )}
+                  
+                  {/* User provided badge */}
+                  {item.userProvided && (
+                    <View style={styles.userProvidedBadge}>
+                      <Ionicons name="person" size={12} color="#4CAF50" />
+                      <Text style={styles.userProvidedText}>User assisted</Text>
+                    </View>
+                  )}
                 </View>
-                
-                {/* 🎯 NEW: AI Generated Badge */}
-                {item.generatedByAI && (
-                  <View style={styles.aiGeneratedBadge}>
-                    <Ionicons name="sparkles" size={12} color="#FF9800" />
-                    <Text style={styles.aiGeneratedText}>AI generated nutrition</Text>
-                  </View>
-                )}
-                
-                {/* User provided badge */}
-                {item.userProvided && (
-                  <View style={styles.userProvidedBadge}>
-                    <Ionicons name="person" size={12} color="#4CAF50" />
-                    <Text style={styles.userProvidedText}>User assisted</Text>
-                  </View>
-                )}
-              </View>
-            ))}
+              );
+            })}
           </View>
         )}
 
-        {/* 🎯 FALLBACK: Original Combo Display (for backward compatibility) */}
+        {/* Fallback: Original Combo Display */}
         {foodData.isComboMeal && (!foodData.individualItems || foodData.individualItems.length === 0) && (
           <View style={styles.comboContainer}>
             <Text style={styles.comboTitle}>
-              🍽️ Combo Meal ({foodData.itemCount} items)
+              🍽️ Combo Meal ({safeRender(foodData.itemCount, '1')} items)
             </Text>
             
             {foodData.individualItems?.map((item, index) => (
               <View key={index} style={styles.comboItem}>
-                <Text style={styles.comboItemName}>{item.displayName || item.name}</Text>
+                <Text style={styles.comboItemName}>{safeRender(item.displayName || item.name, `Item ${index + 1}`)}</Text>
                 <Text style={styles.comboItemPortion}>
-                  {item.portion?.size} portion ({item.portion?.estimatedWeight})
+                  {safeRender(item.portion?.size, 'Standard')} portion ({safeRender(item.portion?.estimatedWeight, 'avg weight')})
                 </Text>
                 <Text style={styles.comboItemCalories}>
-                  {item.nutrition.calories} kcal
+                  {safeRender(item.nutrition?.calories, '0')} kcal
                 </Text>
               </View>
             ))}
             
-            {foodData.lpuSpecialties > 0 && (
+            {safeNumber(foodData.lpuSpecialties, 0) > 0 && (
               <Text style={styles.lpuSpecial}>
-                ⭐ {foodData.lpuSpecialties} LPU Specialty dish(es)
+                ⭐ {safeRender(foodData.lpuSpecialties)} LPU Specialty dish(es)
               </Text>
             )}
           </View>
         )}
 
-        {/* 🎯 ENHANCED: Total Nutrition Grid */}
+        {/* Total Nutrition Grid */}
         <View style={styles.nutritionContainer}>
           <Text style={styles.sectionTitle}>Total Nutrition Information</Text>
           {foodData.totalFoodPieces && (
             <Text style={styles.totalPiecesText}>
-              Combined nutrition for {foodData.totalFoodPieces} pieces
+              Combined nutrition for {safeRender(foodData.totalFoodPieces)} pieces
             </Text>
           )}
           <View style={styles.nutritionGrid}>
             <View style={styles.nutritionGridItem}>
-              <Text style={styles.nutritionValue}>{foodData.nutrition.calories}</Text>
+              <Text style={styles.nutritionValue}>{safeRender(foodData.nutrition?.calories, '0')}</Text>
               <Text style={styles.nutritionLabel}>Calories</Text>
             </View>
             <View style={styles.nutritionGridItem}>
-              <Text style={styles.nutritionValue}>{foodData.nutrition.protein}g</Text>
+              <Text style={styles.nutritionValue}>{safeRender(foodData.nutrition?.protein, '0')}g</Text>
               <Text style={styles.nutritionLabel}>Protein</Text>
             </View>
             <View style={styles.nutritionGridItem}>
-              <Text style={styles.nutritionValue}>{foodData.nutrition.carbs}g</Text>
+              <Text style={styles.nutritionValue}>{safeRender(foodData.nutrition?.carbs, '0')}g</Text>
               <Text style={styles.nutritionLabel}>Carbs</Text>
             </View>
             <View style={styles.nutritionGridItem}>
-              <Text style={styles.nutritionValue}>{foodData.nutrition.fat}g</Text>
+              <Text style={styles.nutritionValue}>{safeRender(foodData.nutrition?.fat, '0')}g</Text>
               <Text style={styles.nutritionLabel}>Fat</Text>
             </View>
             <View style={styles.nutritionGridItem}>
-              <Text style={styles.nutritionValue}>{foodData.nutrition.fiber}g</Text>
+              <Text style={styles.nutritionValue}>{safeRender(foodData.nutrition?.fiber, '0')}g</Text>
               <Text style={styles.nutritionLabel}>Fiber</Text>
             </View>
             <View style={styles.nutritionGridItem}>
-              <Text style={styles.nutritionValue}>{foodData.nutrition.iron}mg</Text>
+              <Text style={styles.nutritionValue}>{safeRender(foodData.nutrition?.iron, '0')}mg</Text>
               <Text style={styles.nutritionLabel}>Iron</Text>
             </View>
           </View>
@@ -286,7 +321,7 @@ const handleAddToMeal = async () => {
               <Ionicons name="bulb" size={20} color="#FF9800" />
               <Text style={styles.tipsTitle}>Health Tip</Text>
             </View>
-            <Text style={styles.tipsText}>{foodData.tips}</Text>
+            <Text style={styles.tipsText}>{safeRender(foodData.tips)}</Text>
           </View>
         )}
 
@@ -300,7 +335,7 @@ const handleAddToMeal = async () => {
           </View>
         )}
 
-        {/* 🎯 User Assisted Info */}
+        {/* User Assisted Info */}
         {foodData.userAssisted && (
           <View style={styles.userAssistedContainer}>
             <Ionicons name="people" size={16} color="#4CAF50" />
@@ -357,6 +392,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  errorText: {
+    fontSize: 18,
+    color: '#f44336',
+    textAlign: 'center',
+    margin: 20,
+  },
+  backButtonText: {
+    fontSize: 16,
+    color: '#2196F3',
+    textAlign: 'center',
+    textDecorationLine: 'underline',
+  },
   imageContainer: {
     position: 'relative',
   },
@@ -407,7 +454,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
 
-  // 🎯 User Input Styles
+  // User Input Styles
   userInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -439,7 +486,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // 🎯 NEW: AI Enhanced Notice
+  // AI Enhanced Notice
   aiEnhancedContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -455,7 +502,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // 🎯 Individual Items Styles
+  // Individual Items Styles
   individualItemsContainer: {
     backgroundColor: 'white',
     padding: 16,
@@ -537,7 +584,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 
-  // 🎯 NEW: AI Generated Badge
+  // AI Generated Badge
   aiGeneratedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -572,7 +619,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 
-  // Fallback combo styles (preserved)
+  // Fallback combo styles
   comboContainer: {
     backgroundColor: 'white',
     padding: 16,
